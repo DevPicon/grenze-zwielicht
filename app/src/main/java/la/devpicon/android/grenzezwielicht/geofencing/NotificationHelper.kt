@@ -5,6 +5,7 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.app.PendingIntent.FLAG_IMMUTABLE
 import android.app.PendingIntent.FLAG_UPDATE_CURRENT
 import android.content.Context
 import android.content.ContextWrapper
@@ -49,7 +50,7 @@ class NotificationHelper(context: Context) : ContextWrapper(context) {
 
     @SuppressLint("MissingPermission")
     fun sendHighPriorityNotification(title: String, body: String, intent: Intent) {
-        val pendingIntent = PendingIntent.getActivity(this, 267, intent, FLAG_UPDATE_CURRENT)
+        val pendingIntent = PendingIntent.getActivity(this, 267, intent, FLAG_UPDATE_CURRENT or FLAG_IMMUTABLE)
         val notification = NotificationCompat.Builder(this, CHANNEL_ID).apply {
             setContentTitle(title)
             setContentText(body)

@@ -39,17 +39,17 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
 
         val transitionType = when (geofenceTransitionType) {
             Geofence.GEOFENCE_TRANSITION_ENTER -> {
-                Log.i(TAG, "Enter to geofence")
+                Log.i(TAG, "TransitionType: Enter to geofence")
                 "Geofence.GEOFENCE_TRANSITION_ENTER"
             }
 
             Geofence.GEOFENCE_TRANSITION_EXIT -> {
-                Log.i(TAG, "Exit from geofence")
+                Log.i(TAG, "TransitionType: Exit from geofence")
                 "Geofence.GEOFENCE_TRANSITION_EXIT"
             }
 
             Geofence.GEOFENCE_TRANSITION_DWELL -> {
-                Log.i(TAG, "In geofence")
+                Log.i(TAG, "TransitionType: In geofence")
                 "Geofence.GEOFENCE_TRANSITION_DWELL"
             }
 

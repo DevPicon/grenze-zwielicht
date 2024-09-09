@@ -35,6 +35,8 @@ private const val TAG = "MapsActivity"
 private const val GEOFENCE_RADIUS = 200.0
 private const val GEOFENCE_ID = "SOME_GEOFENCE_ID"
 private val DEFAULT_LOCATION = LatLng(-33.4307342, -70.5949515)
+private const val GEOFENCE_TRANSITIONS =
+    Geofence.GEOFENCE_TRANSITION_ENTER or Geofence.GEOFENCE_TRANSITION_EXIT or Geofence.GEOFENCE_TRANSITION_DWELL
 
 class MapsActivity : AppCompatActivity(), OnMapReadyCallback, LocationCallback {
 
@@ -49,7 +51,8 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, LocationCallback {
     private var locationService: LocationService? = null
     private var isServiceBound = false
 
-    private lateinit var  pendingIntent : PendingIntent
+    private lateinit var pendingIntent: PendingIntent
+
 
     private val circleOptions = CircleOptions()
         .center(DEFAULT_LOCATION)
@@ -107,6 +110,10 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, LocationCallback {
 
     }
 
+    /**
+     * Retrieves the user's current location and starts the location service.
+     * If the location is disabled, prompts the user to enable it.
+     */
     private fun getLocation() {
         val locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
         val isEnabled = locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)
@@ -127,6 +134,11 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, LocationCallback {
         }
     }
 
+    /**
+     * Initializes the activity, sets up the map, and requests necessary permissions.
+     *
+     * @param savedInstanceState Bundle that contains the saved state of the activity.
+     */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -142,16 +154,25 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, LocationCallback {
         pendingIntent = geofenceHelper.getPendingIntent()
     }
 
+    /**
+     * Resumes the map view and the activity lifecycle.
+     */
     override fun onResume() {
         super.onResume()
         mapView.onResume()
     }
 
+    /**
+     * Pauses the map view and the activity lifecycle.
+     */
     override fun onPause() {
         super.onPause()
         mapView.onPause()
     }
 
+    /**
+     * Destroys the map view and removes geofences when the activity is destroyed.
+     */
     override fun onDestroy() {
         super.onDestroy()
         mapView.onDestroy()
@@ -172,19 +193,19 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, LocationCallback {
         }
     }
 
+    /**
+     * Handles low memory situations by notifying the map view.
+     */
     override fun onLowMemory() {
         super.onLowMemory()
         mapView.onLowMemory()
     }
 
+
     /**
-     * Manipulates the map once available.
-     * This callback is triggered when the map is ready to be used.
-     * This is where we can add markers or lines, add listeners or move the camera. In this case,
-     * we just add a marker near Sydney, Australia.
-     * If Google Play services is not installed on the device, the user will be prompted to install
-     * it inside the SupportMapFragment. This method will only be triggered once the user has
-     * installed Google Play services and returned to the app.
+     * Called when the map is ready to be used. Adds geofences and a circle to the map.
+     *
+     * @param googleMap The GoogleMap object representing the map.
      */
     @SuppressLint("MissingPermission")
     override fun onMapReady(googleMap: GoogleMap) {
@@ -197,7 +218,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, LocationCallback {
                         UUID.randomUUID().toString(),
                         DEFAULT_LOCATION,
                         GEOFENCE_RADIUS.toFloat(),
-                        Geofence.GEOFENCE_TRANSITION_ENTER or Geofence.GEOFENCE_TRANSITION_EXIT or Geofence.GEOFENCE_TRANSITION_DWELL
+                        GEOFENCE_TRANSITIONS
                     )
                 ), pendingIntent
             )
@@ -221,6 +242,12 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, LocationCallback {
             }
     }
 
+    /**
+     * Called when the location is updated. Updates the marker on the map with the new location.
+     *
+     * @param latitude The updated latitude of the user's location.
+     * @param longitude The updated longitude of the user's location.
+     */
     override fun onLocationUpdated(latitude: Double, longitude: Double) {
         runOnUiThread {
             val myLocation = LatLng(latitude, longitude)
@@ -230,7 +257,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, LocationCallback {
             currentMarker = mMap?.addMarker(
                 MarkerOptions().position(myLocation).title("Marker title")
             )
-            mMap?.moveCamera(CameraUpdateFactory.newLatLngZoom(myLocation, 10f))
+            mMap?.moveCamera(CameraUpdateFactory.newLatLngZoom(myLocation, 14.9f))
         }
     }
 }
