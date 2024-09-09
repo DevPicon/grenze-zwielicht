@@ -1,55 +1,180 @@
 package la.devpicon.android.grenzezwielicht.geofencing
 
-import android.Manifest
 import android.annotation.SuppressLint
-import android.content.pm.PackageManager
+import android.app.PendingIntent
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.content.ServiceConnection
 import android.graphics.Color
+import android.location.LocationManager
 import android.os.Build
 import android.os.Bundle
+import android.os.IBinder
+import android.provider.Settings
 import android.util.Log
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
+import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofencingClient
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
+import com.google.android.gms.maps.MapView
 import com.google.android.gms.maps.OnMapReadyCallback
-import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.CircleOptions
 import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.maps.model.Marker
 import com.google.android.gms.maps.model.MarkerOptions
 import la.devpicon.android.grenzezwielicht.R
-import la.devpicon.android.grenzezwielicht.databinding.ActivityMapsBinding
-import la.devpicon.android.grenzezwielicht.utils.BACKGROUND_LOCATION_ACCESS_REQUEST_CODE
-import la.devpicon.android.grenzezwielicht.utils.FINE_LOCATION_ACCESS_REQUEST_CODE
+import java.util.UUID
 
 private const val TAG = "MapsActivity"
-private const val GEOFENCE_RADIUS = 200.0f
+private const val GEOFENCE_RADIUS = 200.0
 private const val GEOFENCE_ID = "SOME_GEOFENCE_ID"
+private val DEFAULT_LOCATION = LatLng(-33.4307342, -70.5949515)
 
-class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLongClickListener {
+class MapsActivity : AppCompatActivity(), OnMapReadyCallback, LocationCallback {
 
-    private lateinit var mMap: GoogleMap
-    private lateinit var binding: ActivityMapsBinding
+    private lateinit var mapView: MapView
+
+    private var currentMarker: Marker? = null
+    private var mMap: GoogleMap? = null
+
     private lateinit var geofencingClient: GeofencingClient
     private lateinit var geofenceHelper: GeofenceHelper
+    private lateinit var fusedLocationProviderClient: FusedLocationProviderClient
+    private var locationService: LocationService? = null
+    private var isServiceBound = false
+
+    private lateinit var  pendingIntent : PendingIntent
+
+    private val circleOptions = CircleOptions()
+        .center(DEFAULT_LOCATION)
+        .radius(GEOFENCE_RADIUS)
+        .strokeColor(Color.BLUE)
+        .fillColor(Color.argb(70, 0, 0, 255))
+
+    private val REQUIRED_PERMISSIONS = mutableListOf(
+        android.Manifest.permission.ACCESS_COARSE_LOCATION,
+        android.Manifest.permission.ACCESS_FINE_LOCATION
+    ).apply {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            add(android.Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }.toTypedArray()
+
+    @SuppressLint("MissingPermission")
+    private val requestPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { isGranted ->
+        Log.i(TAG, isGranted.toString())
+        if (isGranted.containsValue(false)) {
+            Toast.makeText(this, "Permission not granted", Toast.LENGTH_SHORT).show()
+        } else {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                requestBackgroundPermission.launch(android.Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+            } else {
+                getLocation()
+            }
+        }
+    }
+
+    private val requestBackgroundPermission =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
+            if (isGranted) {
+                getLocation()
+            } else {
+                Toast.makeText(this@MapsActivity, "Permission not granted", Toast.LENGTH_SHORT)
+                    .show()
+            }
+        }
+
+    private val serviceConnection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
+            val binder = service as LocationService.LocalBinder
+            locationService = binder.getService()
+            locationService?.setLocationCallback(this@MapsActivity)
+            isServiceBound = true
+        }
+
+        override fun onServiceDisconnected(name: ComponentName?) {
+            locationService = null
+            isServiceBound = false
+        }
+
+    }
+
+    private fun getLocation() {
+        val locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
+        val isEnabled = locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)
+                || locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
+        if (isEnabled) {
+            val serviceIntent = Intent(this, LocationService::class.java)
+                .apply {
+                    action = LocationService.ACTION_START
+                }
+            startService(serviceIntent)
+            bindService(serviceIntent, serviceConnection, Context.BIND_AUTO_CREATE)
+
+            mapView.getMapAsync(this)
+        } else {
+            val intent = Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)
+            startActivity(intent)
+            Toast.makeText(this@MapsActivity, "Enable location", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        binding = ActivityMapsBinding.inflate(layoutInflater)
-        setContentView(binding.root)
-
-        // Obtain the SupportMapFragment and get notified when the map is ready to be used.
-        val mapFragment = supportFragmentManager
-            .findFragmentById(R.id.map) as SupportMapFragment
-        mapFragment.getMapAsync(this)
+        setContentView(R.layout.activity_main)
 
         geofencingClient = LocationServices.getGeofencingClient(this)
+
+        mapView = findViewById(R.id.mapview)
+        mapView.onCreate(savedInstanceState)
+
+        requestPermissionLauncher.launch(REQUIRED_PERMISSIONS)
+
         geofenceHelper = GeofenceHelper(this)
+        pendingIntent = geofenceHelper.getPendingIntent()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        mapView.onResume()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        mapView.onPause()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        mapView.onDestroy()
+        geofencingClient.removeGeofences(pendingIntent).run {
+            addOnSuccessListener {
+                // Geofences removed
+                Toast.makeText(
+                    this@MapsActivity,
+                    "Removed geofence successfully",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+            addOnFailureListener {
+                //Failed to remove georeferences
+                Toast.makeText(this@MapsActivity, "Removed geofence failed", Toast.LENGTH_SHORT)
+                    .show()
+            }
+        }
+    }
+
+    override fun onLowMemory() {
+        super.onLowMemory()
+        mapView.onLowMemory()
     }
 
     /**
@@ -61,136 +186,51 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLon
      * it inside the SupportMapFragment. This method will only be triggered once the user has
      * installed Google Play services and returned to the app.
      */
+    @SuppressLint("MissingPermission")
     override fun onMapReady(googleMap: GoogleMap) {
         mMap = googleMap
 
-        // Add a marker in Sydney and move the camera
-        // val sydney = LatLng(-34.0, 151.0)
-        //val costaneraCenter = LatLng(-33.4177082, -70.6052759)
-        //addMarker(costaneraCenter)
-        //mMap.moveCamera(CameraUpdateFactory.newLatLng(costaneraCenter))
-
-        enableUserLocation()
-
-        mMap.setOnMapLongClickListener(this)
-    }
-
-    private fun enableUserLocation() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
-            == PackageManager.PERMISSION_GRANTED
-        ) {
-            mMap.isMyLocationEnabled = true
-        } else {
-            // Ask for permission
-            if (ActivityCompat.shouldShowRequestPermissionRationale(
-                    this,
-                    Manifest.permission.ACCESS_FINE_LOCATION
-                )
-            ) {
-                // We need to show user a dialog for displaying why the permission is needed and then ask for the permission...
-                ActivityCompat.requestPermissions(
-                    this,
-                    arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),
-                    FINE_LOCATION_ACCESS_REQUEST_CODE
-                )
-            } else {
-                ActivityCompat.requestPermissions(
-                    this,
-                    arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),
-                    FINE_LOCATION_ACCESS_REQUEST_CODE
-                )
-            }
-        }
-    }
-
-    @SuppressLint("MissingPermission")
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<out String>,
-        grantResults: IntArray
-    ) {
-        if (requestCode == FINE_LOCATION_ACCESS_REQUEST_CODE) {
-            if (grantResults.isNotEmpty()
-                && grantResults[0] == PackageManager.PERMISSION_GRANTED
-            ) {
-                // We have the permission
-                mMap.isMyLocationEnabled = true
-            } else {
-                // We dont have the permission
-                super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-            }
-        } else if(requestCode == BACKGROUND_LOCATION_ACCESS_REQUEST_CODE){
-            if (grantResults
-                    .isNotEmpty()
-                && grantResults[0] == PackageManager.PERMISSION_GRANTED){
-                Toast.makeText(this, "You ca add Geofences", Toast.LENGTH_SHORT).show()
-            } else {
-                Toast.makeText(this, "Background location access is needed for geofences to trigger", Toast.LENGTH_SHORT)
-                    .show()
-            }
-        }
-    }
-
-    override fun onMapLongClick(latLng: LatLng) {
-        if (Build.VERSION.SDK_INT >= 29) {
-            // We need background permission
-            if (ContextCompat.checkSelfPermission(
-                    this,
-                    Manifest.permission.ACCESS_BACKGROUND_LOCATION
-                )
-                == PackageManager.PERMISSION_GRANTED
-            ) {
-                tryAddingGeofence(latLng)
-            } else {
-                if(ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.ACCESS_BACKGROUND_LOCATION)){
-                    // We show a dialog and ask for permission
-                    ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.ACCESS_BACKGROUND_LOCATION), BACKGROUND_LOCATION_ACCESS_REQUEST_CODE)
-                } else {
-                    ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.ACCESS_BACKGROUND_LOCATION), BACKGROUND_LOCATION_ACCESS_REQUEST_CODE)
+        geofencingClient
+            .addGeofences(
+                geofenceHelper.getGeofencingRequest(
+                    geofenceHelper.getGeofence(
+                        UUID.randomUUID().toString(),
+                        DEFAULT_LOCATION,
+                        GEOFENCE_RADIUS.toFloat(),
+                        Geofence.GEOFENCE_TRANSITION_ENTER or Geofence.GEOFENCE_TRANSITION_EXIT or Geofence.GEOFENCE_TRANSITION_DWELL
+                    )
+                ), pendingIntent
+            )
+            .run {
+                addOnSuccessListener {
+                    mMap?.addCircle(circleOptions)
+                    Toast.makeText(
+                        this@MapsActivity,
+                        "Added geofence successfully",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+                addOnFailureListener {
+                    Log.i(TAG, "${it.message} ${it.cause} $it")
+                    Toast.makeText(
+                        this@MapsActivity,
+                        "Failed geofence successfully",
+                        Toast.LENGTH_SHORT
+                    ).show()
                 }
             }
-        } else {
-            tryAddingGeofence(latLng)
-        }
     }
 
-    private fun tryAddingGeofence(latLng: LatLng) {
-        mMap.clear()
-        addMarker(latLng)
-        addCircle(latLng, GEOFENCE_RADIUS.toDouble())
-        addGeofence(latLng, GEOFENCE_RADIUS)
-    }
-
-    @SuppressLint("MissingPermission")
-    private fun addGeofence(latLng: LatLng, radius: Float) {
-        val geofence = geofenceHelper.getGeofence(
-            GEOFENCE_ID,
-            latLng,
-            radius,
-            Geofence.GEOFENCE_TRANSITION_ENTER or Geofence.GEOFENCE_TRANSITION_DWELL or Geofence.GEOFENCE_TRANSITION_EXIT
-        )
-        val geofencingRequest = geofenceHelper.getGeofencingRequest(geofence)
-        val pendingIntent = geofenceHelper.getPendingIntent()
-        geofencingClient.addGeofences(geofencingRequest, pendingIntent)
-            .addOnSuccessListener {
-                Log.d(TAG, "onSuccess: Geofence added")
+    override fun onLocationUpdated(latitude: Double, longitude: Double) {
+        runOnUiThread {
+            val myLocation = LatLng(latitude, longitude)
+            if (currentMarker != null) {
+                currentMarker?.remove()
             }
-            .addOnFailureListener { e -> geofenceHelper.getErrorString(e) }
-    }
-
-    private fun addMarker(latLng: LatLng) {
-        val marker = MarkerOptions().position(latLng).title("Marker in Sydney")
-        mMap.addMarker(marker)
-    }
-
-    private fun addCircle(latLng: LatLng, radius: Double) {
-        val circleOptions = CircleOptions().apply {
-            center(latLng)
-            radius(radius)
-            strokeColor(Color.argb(255, 255, 0, 0))
-            fillColor(Color.argb(64, 255, 0, 0))
-            strokeWidth(4f)
+            currentMarker = mMap?.addMarker(
+                MarkerOptions().position(myLocation).title("Marker title")
+            )
+            mMap?.moveCamera(CameraUpdateFactory.newLatLngZoom(myLocation, 10f))
         }
-        mMap.addCircle(circleOptions)
     }
 }

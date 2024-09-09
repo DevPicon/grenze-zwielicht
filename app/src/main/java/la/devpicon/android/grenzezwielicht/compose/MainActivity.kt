@@ -1,4 +1,4 @@
-package la.devpicon.android.grenzezwielicht
+package la.devpicon.android.grenzezwielicht.compose
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -10,7 +10,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import com.google.android.gms.location.GeofencingClient
 import la.devpicon.android.grenzezwielicht.geofencing.GeofenceHelper
-import la.devpicon.android.grenzezwielicht.compose.GeofencingScreen
 import la.devpicon.android.grenzezwielicht.ui.theme.GrenzezwielichtTheme
 
 class MainActivity : ComponentActivity() {

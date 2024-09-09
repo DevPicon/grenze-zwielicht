@@ -9,12 +9,7 @@ import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofenceStatusCodes
 import com.google.android.gms.location.GeofencingRequest
 import com.google.android.gms.maps.model.LatLng
-
-interface GGeofenceHelper {
-    fun getGeofencingRequest(geofence: Geofence): GeofencingRequest
-    fun getGeofence(id: String, latLng: LatLng, radius: Float, transitionTypes: Int): Geofence
-    fun getPendingIntent(): PendingIntent
-}
+import java.util.UUID
 
 private const val TAG = "GeofenceHelper"
 
@@ -22,21 +17,12 @@ class GeofenceHelper(
     baseContext: Context
 ) : ContextWrapper(baseContext) {
 
-    private var pendingIntent: PendingIntent? = null
-
-    fun getPendingIntent(): PendingIntent {
-        if (pendingIntent != null) {
-            return pendingIntent as PendingIntent
-        }
-
-        pendingIntent = PendingIntent.getBroadcast(
+    fun getPendingIntent(): PendingIntent  = PendingIntent.getBroadcast(
             this,
-            2607,
+            0,
             Intent(this, GeofenceBroadcastReceiver::class.java),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
-        return pendingIntent as PendingIntent
-    }
 
 
     fun getGeofencingRequest(geofence: Geofence): GeofencingRequest {
@@ -54,8 +40,8 @@ class GeofenceHelper(
         radius: Float,
         transitionTypes: Int
     ): Geofence = Geofence.Builder()
+        .setRequestId(UUID.randomUUID().toString())
         .setCircularRegion(latLng.latitude, latLng.longitude, radius)
-        .setRequestId(id)
         .setTransitionTypes(transitionTypes)
         .setLoiteringDelay(5000)
         .setExpirationDuration(Geofence.NEVER_EXPIRE)

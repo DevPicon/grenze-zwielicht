@@ -6,28 +6,27 @@ import android.content.Intent
 import android.util.Log
 import android.widget.Toast
 import com.google.android.gms.location.Geofence
+import com.google.android.gms.location.GeofenceStatusCodes
 import com.google.android.gms.location.GeofencingEvent
 
 private const val TAG = "GeofenceBroadcastReceiver"
 
 class GeofenceBroadcastReceiver : BroadcastReceiver() {
 
-    override fun onReceive(context: Context, intent: Intent) {
+    override fun onReceive(context: Context, intent: Intent?) {
 
-        //Toast.makeText(context, "Geofence triggered...", Toast.LENGTH_SHORT).show()
+        val geofencingEvent = intent?.let { GeofencingEvent.fromIntent(it) }
 
-        val notificationHelper = NotificationHelper(context)
-
-        val geofencingEvent = GeofencingEvent.fromIntent(intent)
-
-        if(geofencingEvent == null){
+        if (geofencingEvent == null) {
             Log.d(TAG, "onReceive: Error receiving geofence event, event should not be null...")
             return
 
         }
 
-        if (geofencingEvent.hasError() == true) {
-            Log.d(TAG, "onReceive: Error receiving geofence event...")
+        if (geofencingEvent.hasError()) {
+            val errorMessage = GeofenceStatusCodes
+                .getStatusCodeString(geofencingEvent.errorCode)
+            Log.e(TAG, "onReceive: Error receiving geofence event...")
             // Handle error
             return
         }
@@ -38,50 +37,35 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
         // Get the transition types
         val geofenceTransitionType = geofencingEvent.geofenceTransition
 
-        when (geofenceTransitionType) {
+        val transitionType = when (geofenceTransitionType) {
             Geofence.GEOFENCE_TRANSITION_ENTER -> {
-                Toast.makeText(
-                    context,
-                    "Geofence.GEOFENCE_TRANSITION_ENTER",
-                    Toast.LENGTH_SHORT
-                ).show()
-                notificationHelper.sendHighPriorityNotification(
-                    "Geofence.GEOFENCE_TRANSITION_ENTER",
-                    "",
-                    MapsActivity::class.java
-                )
+                Log.i(TAG, "Enter to geofence")
+                "Geofence.GEOFENCE_TRANSITION_ENTER"
             }
 
             Geofence.GEOFENCE_TRANSITION_EXIT -> {
-                Toast.makeText(
-                    context,
-                    "Geofence.GEOFENCE_TRANSITION_EXIT",
-                    Toast.LENGTH_SHORT
-                )
-                    .show()
-                notificationHelper.sendHighPriorityNotification(
-                    "Geofence.GEOFENCE_TRANSITION_EXIT",
-                    "",
-                    MapsActivity::class.java
-                )
+                Log.i(TAG, "Exit from geofence")
+                "Geofence.GEOFENCE_TRANSITION_EXIT"
             }
 
             Geofence.GEOFENCE_TRANSITION_DWELL -> {
-                Toast.makeText(
-                    context,
-                    "Geofence.GEOFENCE_TRANSITION_DWELL",
-                    Toast.LENGTH_SHORT
-                )
-                    .show()
-                notificationHelper.sendHighPriorityNotification(
-                    "Geofence.GEOFENCE_TRANSITION_DWELL",
-                    "",
-                    MapsActivity::class.java
-                )
+                Log.i(TAG, "In geofence")
+                "Geofence.GEOFENCE_TRANSITION_DWELL"
             }
 
-            else -> Toast.makeText(context, "Unknown type $geofenceTransitionType", Toast.LENGTH_SHORT).show()
+            else -> "Unknown type $geofenceTransitionType"
         }
+
+        val notificationIntent = Intent(context, MapsActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        }
+
+        val notificationHelper = NotificationHelper(context)
+        notificationHelper.sendHighPriorityNotification(
+            title = transitionType,
+            body = "This is the content of my notification",
+            notificationIntent
+        )
     }
 }
 

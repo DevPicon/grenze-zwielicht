@@ -48,13 +48,12 @@ class NotificationHelper(context: Context) : ContextWrapper(context) {
     }
 
     @SuppressLint("MissingPermission")
-    fun sendHighPriorityNotification(title:String, body:String, activityName: Class<*>){
-        val intent = Intent(this, activityName)
+    fun sendHighPriorityNotification(title: String, body: String, intent: Intent) {
         val pendingIntent = PendingIntent.getActivity(this, 267, intent, FLAG_UPDATE_CURRENT)
         val notification = NotificationCompat.Builder(this, CHANNEL_ID).apply {
             setContentTitle(title)
             setContentText(body)
-            setSmallIcon(R.drawable.ic_launcher_background)
+            setSmallIcon(R.drawable.baseline_corporate_fare_24)
             priority = NotificationCompat.PRIORITY_HIGH
             setStyle(NotificationCompat.BigTextStyle().setSummaryText("summary"))
             setContentIntent(pendingIntent)
@@ -63,5 +62,13 @@ class NotificationHelper(context: Context) : ContextWrapper(context) {
         NotificationManagerCompat.from(this).notify(Random.nextInt(), notification)
 
     }
+
+    @SuppressLint("MissingPermission")
+    fun createHighPriorityNotificationBuilder(title: String, body: String) = NotificationCompat.Builder(this, CHANNEL_ID).apply {
+            setContentTitle(title)
+            setContentText(body)
+            setSmallIcon(R.drawable.ic_launcher_background)
+            setOngoing(true)
+        }
 
 }
