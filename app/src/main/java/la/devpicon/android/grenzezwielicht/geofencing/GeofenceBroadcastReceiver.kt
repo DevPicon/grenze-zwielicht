@@ -26,7 +26,7 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
         if (geofencingEvent.hasError()) {
             val errorMessage = GeofenceStatusCodes
                 .getStatusCodeString(geofencingEvent.errorCode)
-            Log.e(TAG, "onReceive: Error receiving geofence event...")
+            Log.e(TAG, "onReceive: Error receiving geofence event... ${geofencingEvent.errorCode} $errorMessage")
             // Handle error
             return
         }
