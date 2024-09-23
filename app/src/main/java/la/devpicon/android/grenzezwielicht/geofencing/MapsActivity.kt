@@ -16,7 +16,6 @@ import android.util.Log
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
-import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofencingClient
 import com.google.android.gms.location.LocationServices
@@ -47,7 +46,6 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, LocationCallback {
 
     private lateinit var geofencingClient: GeofencingClient
     private lateinit var geofenceHelper: GeofenceHelper
-    private lateinit var fusedLocationProviderClient: FusedLocationProviderClient
     private var locationService: LocationService? = null
     private var isServiceBound = false
 
