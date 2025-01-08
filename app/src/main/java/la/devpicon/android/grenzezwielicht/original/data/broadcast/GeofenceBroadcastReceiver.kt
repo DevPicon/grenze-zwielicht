@@ -9,15 +9,15 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.widget.Toast
 import com.google.android.gms.location.GeofencingEvent
-import la.devpicon.android.grenzezwielicht.original.data.broadcast.notification.createGeofenceTransitionNotification
-import la.devpicon.android.grenzezwielicht.original.data.db.entity.GeofenceEntity
-import la.devpicon.android.grenzezwielicht.original.data.repository.GeofenceRepository
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import la.devpicon.android.grenzezwielicht.original.Feedback
+import la.devpicon.android.grenzezwielicht.original.data.broadcast.notification.createGeofenceTransitionNotification
+import la.devpicon.android.grenzezwielicht.original.data.db.entity.GeofenceEntity
+import la.devpicon.android.grenzezwielicht.original.data.repository.GeofenceRepository
 import la.devpicon.android.grenzezwielicht.original.getTransitionType
 import la.devpicon.android.grenzezwielicht.original.model.GeofenceEventEntry
 import java.util.UUID
@@ -26,56 +26,83 @@ import kotlin.random.Random
 
 @AndroidEntryPoint
 class GeofenceBroadcastReceiver : BroadcastReceiver() {
+    /**
+     * Manages the lifecycle of coroutines launched by this receiver
+     */
     private val job = Job()
+
+    /**
+     * Coroutine
+     */
     private val scope = CoroutineScope(job + Dispatchers.IO)
 
     @Inject
     lateinit var repository: GeofenceRepository
 
+    /**
+     * Processes a geofence event with guaranteed notification delivery
+     * @param geofencingEvent the event containing the geofence transition information
+     * @param context application context for system services
+     */
     private fun processEvent(geofencingEvent: GeofencingEvent, context: Context) {
         val triggeringLocation = geofencingEvent.triggeringLocation
         val geofenceTransition = geofencingEvent.geofenceTransition
+        val eventTime = System.currentTimeMillis() // Capture the event time once
 
-        geofencingEvent.triggeringGeofences?.forEach {
+        // Use goAsync()
+        val pendingResult = goAsync()
+
+        geofencingEvent.triggeringGeofences?.forEach { geofence ->
             val uuid = UUID.randomUUID().toString()
             scope.launch {
-                repository.saveGeofenceEventEntry(
-                    GeofenceEventEntry(
-                        uuid = uuid,
-                        transitionType = getTransitionType(geofenceTransition),
-                        latitude = triggeringLocation?.latitude?.toString().orEmpty(),
-                        longitude = triggeringLocation?.longitude?.toString().orEmpty(),
-                        geofenceSource = "${it.requestId} - ${it.transitionTypes} - ${it.latitude} ${it.longitude} ${it.radius}",
-                        feedback = Feedback.UNDEFINED,
-                        brand = Build.BRAND,
-                        model = Build.MODEL,
-                        osVersion = Build.VERSION.RELEASE,
-                        appVersion = getAppVersion(context)
+                try {
+                    repository.saveGeofenceEventEntry(
+                        GeofenceEventEntry(
+                            uuid = uuid,
+                            transitionType = getTransitionType(geofenceTransition),
+                            timestamp = eventTime,
+                            latitude = triggeringLocation?.latitude?.toString().orEmpty(),
+                            longitude = triggeringLocation?.longitude?.toString().orEmpty(),
+                            geofenceSource = "${geofence.requestId} - ${geofence.transitionTypes} - ${geofence.latitude} ${geofence.longitude} ${geofence.radius}",
+                            feedback = Feedback.UNDEFINED,
+                            brand = Build.BRAND,
+                            model = Build.MODEL,
+                            osVersion = Build.VERSION.RELEASE,
+                            appVersion = getAppVersion(context)
+                        )
                     )
-                )
 
-                if (it.requestId.toIntOrNull() == null) {
-                    Toast.makeText(context, "Request Id was null", Toast.LENGTH_SHORT).show()
+                    if (geofence.requestId.toIntOrNull() == null) {
+                        Toast.makeText(context, "Request Id was null", Toast.LENGTH_SHORT).show()
+                    }
+                    val storedGeofence =
+                        repository.getGeofence(geofence.requestId) ?: GeofenceEntity(
+                            id = 0,
+                            latitude = 0.0f,
+                            longitude = 0.0f,
+                            label = "Error",
+                            radius = 0f
+                        )
+                    showNotification(
+                        context = context,
+                        transitionType = geofenceTransition,
+                        transitionUuid = uuid,
+                        geofence = storedGeofence,
+                        timestamp = eventTime // Pass
+                    )
+                } catch (e: Exception) {
+                    android.util.Log.e(
+                        "GeofenceBroadcastReceiver",
+                        "Failed to process geofence transition",
+                        e
+                    )
+                } finally {
+                    // If this is the last geofence being processed, complete the broadcast
+                    if (geofence == geofencingEvent.triggeringGeofences?.last()) {
+                        pendingResult.finish()
+                    }
                 }
-
-                val storedGeofence = repository.getGeofence(it.requestId) ?: GeofenceEntity(
-                    id = 0,
-                    latitude = 0.0f,
-                    longitude = 0.0f,
-                    label = "Error",
-                    radius = 0f
-                )
-
-                showNotification(
-                    context = context,
-                    transitionType = geofenceTransition,
-                    transitionUuid = uuid,
-                    geofence = storedGeofence
-                )
-
             }
-
-
         }
     }
 
@@ -83,7 +110,8 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
         context: Context,
         transitionType: Int,
         transitionUuid: String,
-        geofence: GeofenceEntity
+        geofence: GeofenceEntity,
+        timestamp: Long
     ) {
         val notificationFeedbackId = Random.nextInt(Int.MAX_VALUE)
         val notification = createGeofenceTransitionNotification(
@@ -91,7 +119,8 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
             transitionType,
             transitionUuid,
             notificationFeedbackId,
-            geofence
+            geofence,
+            timestamp
         )
         val notificationManager =
             context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager

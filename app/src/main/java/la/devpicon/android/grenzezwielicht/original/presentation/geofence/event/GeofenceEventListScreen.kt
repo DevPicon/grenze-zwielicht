@@ -287,7 +287,8 @@ private fun GeofenceEventItemPreview() {
                     brand = Build.BRAND,
                     model = Build.MODEL,
                     osVersion = Build.VERSION.RELEASE,
-                    appVersion = ""
+                    appVersion = "",
+                    timestamp = System.currentTimeMillis()
                 ),
                 onSelectedItem = {}
             )
@@ -312,7 +313,8 @@ private fun GeofenceTransitionListScreenPreview() {
                     brand = Build.BRAND,
                     model = Build.MODEL,
                     osVersion = Build.VERSION.RELEASE,
-                    appVersion = ""
+                    appVersion = "",
+                    timestamp = System.currentTimeMillis()
                 )
             ),
         )

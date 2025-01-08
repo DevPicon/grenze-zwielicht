@@ -5,6 +5,7 @@ import la.devpicon.android.grenzezwielicht.original.Feedback
 data class GeofenceEventEntry(
     val uuid: String,
     val transitionType: String,
+    val timestamp: Long,
     val latitude: String,
     val longitude: String,
     val geofenceSource: String,

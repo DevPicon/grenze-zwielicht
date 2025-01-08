@@ -75,7 +75,8 @@ class GeofenceRepository(
                 brand = it.deviceManufacturer.orEmpty(),
                 model = it.deviceModel.orEmpty(),
                 osVersion = it.osVersion.orEmpty(),
-                appVersion = it.appVersion.orEmpty()
+                appVersion = it.appVersion.orEmpty(),
+                timestamp = it.timestamp.toLong()
             )
         }
     }
@@ -88,7 +89,7 @@ class GeofenceRepository(
                     latitude = latitude.toFloat(),
                     longitude = longitude.toFloat(),
                     geofenceSource = geofenceSource,
-                    timestamp = System.currentTimeMillis().toString(),
+                    timestamp = "$timestamp",
                     uuid = uuid,
                     feedback = feedback.name,
                     deviceManufacturer = brand,
